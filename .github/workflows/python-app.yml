@@ -1,29 +1,19 @@
-name: Hourly Check
-
-on:
-  schedule:
-    - cron: '*/10 * * * *'  # Означає: запускати кожні 10 хвилин
-  workflow_dispatch:      # Дозволяє запускати вручну кнопкою
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
+- name: Restore status cache
+        uses: actions/cache@v4
         with:
-          python-version: '3.9'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests
+          path: last_status.txt
+          key: status-cache-${{ github.run_id }} # Тимчасовий ключ
+          restore-keys: status-cache-
 
       - name: Run test
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python test.py
+
+      - name: Save status cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: last_status.txt
+          key: status-cache-${{ github.run_id }}
