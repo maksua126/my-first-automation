@@ -1,3 +1,19 @@
+import os
+import requests
+
+# Тепер скрипт бере дані з секретів GitHub
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+def send_telegram_msg(text):
+    if not TOKEN or not CHAT_ID:
+        print("Помилка: Токен або ID не знайдені в системних змінних!")
+        return
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    params = {"chat_id": CHAT_ID, "text": text}
+    requests.get(url, params=params)
+
+# ... далі твій код тесту ...
 import requests  # Бібліотека для запитів до сайтів
 
 def test_website_status():
@@ -21,3 +37,4 @@ def test_website_status():
 
 if __name__ == "__main__":
     test_website_status()
+
