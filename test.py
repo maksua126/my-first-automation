@@ -1,76 +1,72 @@
 import os
 import requests
+import json
 
-# 1. Отримуємо секрети з налаштувань GitHub (Settings -> Secrets)
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-STATUS_FILE = "last_status.txt"
+GIST_TOKEN = os.getenv("GIST_TOKEN")
+# Це просто назва файлу в хмарі
+GIST_FILENAME = "server_status.txt"
 
 def send_telegram_msg(text):
-    """Відправка повідомлення в Telegram бот"""
-    if not TOKEN or not CHAT_ID:
-        print("⚠️ Помилка: Секрети TELEGRAM_TOKEN або TELEGRAM_CHAT_ID не знайдені!")
-        return
-    
+    if not TOKEN or not CHAT_ID: return
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    params = {"chat_id": CHAT_ID, "text": text}
-    
-    try:
-        requests.get(url, params=params, timeout=10)
-    except Exception as e:
-        print(f"Помилка відправки в Telegram: {e}")
+    requests.get(url, params={"chat_id": CHAT_ID, "text": text}, timeout=10)
 
 def get_last_status():
-    """Читаємо останній збережений статус із файлу"""
-    if os.path.exists(STATUS_FILE):
-        with open(STATUS_FILE, "r") as f:
-            return f.read().strip()
+    """Отримуємо статус із GitHub Gist"""
+    if not GIST_TOKEN: return "unknown"
+    headers = {"Authorization": f"token {GIST_TOKEN}"}
+    try:
+        # Шукаємо існуючий gist з назвою server_status.txt
+        response = requests.get("https://api.github.com/gists", headers=headers)
+        for gist in response.json():
+            if GIST_FILENAME in gist['files']:
+                content_url = gist['files'][GIST_FILENAME]['raw_url']
+                return requests.get(content_url).text.strip()
+    except: pass
     return "unknown"
 
 def save_status(status):
-    """Зберігаємо поточний статус у файл для наступної перевірки"""
-    with open(STATUS_FILE, "w") as f:
-        f.write(status)
+    """Зберігаємо статус у GitHub Gist"""
+    if not GIST_TOKEN: return
+    headers = {"Authorization": f"token {GIST_TOKEN}"}
+    
+    # Шукаємо чи є вже такий gist
+    gist_id = None
+    try:
+        response = requests.get("https://api.github.com/gists", headers=headers)
+        for gist in response.json():
+            if GIST_FILENAME in gist['files']:
+                gist_id = gist['id']
+                break
+    except: pass
+
+    data = {"files": {GIST_FILENAME: {"content": status}}}
+    if gist_id:
+        requests.patch(f"https://api.github.com/gists/{gist_id}", headers=headers, json=data)
+    else:
+        requests.post("https://api.github.com/gists", headers=headers, json=data)
 
 def test_website_status():
-    # Твій сервер Homarr на NUC
     url = "https://homarr.maks-nuc.pp.ua/"
-    
     last_status = get_last_status()
     current_status = "offline"
     
-    print(f"Перевіряю статус сайту: {url}...")
-    
     try:
-        # Чекаємо відповіді 15 секунд
         response = requests.get(url, timeout=15)
-        
-        if response.status_code == 200:
-            current_status = "online"
-            print("Сайт доступний (200 OK)")
-        else:
-            current_status = "offline"
-            print(f"Сайт повернув помилку: {response.status_code}")
-            
-    except Exception as e:
+        current_status = "online" if response.status_code == 200 else "offline"
+    except:
         current_status = "offline"
-        print(f"Сервер не відповідає (таймаут або помилка з'єднання): {e}")
 
-    # --- ГОЛОВНА ЛОГІКА СПОВІЩЕНЬ ---
+    print(f"Зараз: {current_status}, Було: {last_status}")
+
     if current_status != last_status:
         if current_status == "online":
-            msg = "✅ Homarr знову в мережі! Все працює."
-            print(f"Надсилаю: {msg}")
-            send_telegram_msg(msg)
+            send_telegram_msg("✅ Homarr знову в мережі!")
         else:
-            msg = "🚨 Homarr впав або вимкнули світло! Сервер не доступний."
-            print(f"Надсилаю: {msg}")
-            send_telegram_msg(msg)
-        
-        # Оновлюємо збережений статус
+            send_telegram_msg("🚨 Homarr впав або вимкнули світло!")
         save_status(current_status)
-    else:
-        print(f"Статус не змінився ({current_status}). Повідомлення не потрібне.")
 
 if __name__ == "__main__":
     test_website_status()
