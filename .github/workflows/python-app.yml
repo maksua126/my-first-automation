@@ -1,41 +1,31 @@
 name: Python application
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
   schedule:
-    - cron: '*/15 * * * *'  # Перевірка кожні 15 хвилин
-  workflow_dispatch:      # Кнопка для ручного запуску
-
-permissions:
-  contents: read
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Python 3.10
+    - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: "3.10"
 
     - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install requests
+      run: pip install requests
 
-    - name: Restore status cache
-      uses: actions/cache/restore@v4
+    - name: Download last status
+      uses: dawidd6/action-download-artifact@v3
       with:
-        path: last_status.txt
-        key: status-cache-${{ github.run_id }}
-        restore-keys: |
-          status-cache-
+        workflow: python-app.yml
+        name: status-file
+        if_no_artifact_found: warn
+      continue-on-error: true
 
     - name: Run test
       env:
@@ -43,9 +33,9 @@ jobs:
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       run: python test.py
 
-    - name: Save status cache
-      if: always()
-      uses: actions/cache/save@v4
+    - name: Upload new status
+      uses: actions/upload-artifact@v4
       with:
+        name: status-file
         path: last_status.txt
-        key: status-cache-${{ github.run_id }}
+        overwrite: true
