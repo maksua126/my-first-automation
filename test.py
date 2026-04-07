@@ -1,42 +1,48 @@
 import os
 import requests
 
-# 1. Отримуємо секрети з хмари GitHub
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+STATUS_FILE = "last_status.txt"
 
 def send_telegram_msg(text):
-    if not TOKEN or not CHAT_ID:
-        print("⚠️ Помилка: Токен або ID не знайдені в Secrets!")
-        return
+    if not TOKEN or not CHAT_ID: return
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    params = {"chat_id": CHAT_ID, "text": text}
     try:
-        requests.get(url, params=params, timeout=10)
-    except Exception as e:
-        print(f"Помилка відправки в Telegram: {e}")
+        requests.get(url, params={"chat_id": CHAT_ID, "text": text}, timeout=10)
+    except: pass
+
+def get_last_status():
+    if os.path.exists(STATUS_FILE):
+        with open(STATUS_FILE, "r") as f:
+            return f.read().strip()
+    return "unknown"
+
+def save_status(status):
+    with open(STATUS_FILE, "w") as f:
+        f.write(status)
 
 def test_website_status():
-    # Твій сервер Homarr на NUC
     url = "https://homarr.maks-nuc.pp.ua/"
-    print(f"Перевіряю статус сайту: {url}...")
+    last_status = get_last_status()
+    current_status = "offline"
     
     try:
         response = requests.get(url, timeout=15)
-        
         if response.status_code == 200:
-            status_text = f"✅ Homarr працює! (Відповідь: {response.elapsed.total_seconds()}с)"
-            print(status_text)
-            send_telegram_msg(status_text)
+            current_status = "online"
+    except:
+        current_status = "offline"
+
+    # ЛОГІКА: Пишемо тільки якщо статус ЗМІНИВСЯ
+    if current_status != last_status:
+        if current_status == "online":
+            send_telegram_msg("✅ Homarr знову в мережі!")
         else:
-            error_text = f"⚠️ Homarr повернув помилку: {response.status_code}"
-            print(error_text)
-            send_telegram_msg(error_text)
-            
-    except Exception as e:
-        fail_text = f"🚨 Homarr НЕ ДОСТУПНИЙ! Можливо, вимкнули світло.\nПомилка: {e}"
-        print(fail_text)
-        send_telegram_msg(fail_text)
+            send_telegram_msg("🚨 Homarr впав або вимкнули світло!")
+        save_status(current_status)
+    else:
+        print(f"Статус не змінився ({current_status}). Повідомлення не надсилаємо.")
 
 if __name__ == "__main__":
     test_website_status()
