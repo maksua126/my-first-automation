@@ -2,7 +2,7 @@ name: Hourly Check
 
 on:
   schedule:
-    - cron: '0 * * * *'  # Запускати щогодини
+    - cron: '*/10 * * * *'  # Означає: запускати кожні 10 хвилин
   workflow_dispatch:      # Дозволяє запускати вручну кнопкою
 
 jobs:
